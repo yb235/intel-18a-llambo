@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "intel-18a-llambo"
+version = "0.1.0"
+description = "Intel 18A yield Bayesian forecasting with LLAMBO-style surrogate loop"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26.0",
+  "matplotlib>=3.8.0",
+]
+
+[project.scripts]
+intel18a-yield = "intel_18a_llambo.cli:main"
+intel18a-yield-eval = "intel_18a_llambo.eval_cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

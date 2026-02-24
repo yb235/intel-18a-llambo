@@ -1,0 +1,3 @@
+Management noted that Intel 18A is progressing with RibbonFET and PowerVia integration maturing in pilot lines.
+The team reiterated a guidance target of around 7-8% monthly yield improvement through the mid-2026 learning phase.
+Risk was acknowledged around process variability, but overall confidence improved after recent defect-density reduction.
