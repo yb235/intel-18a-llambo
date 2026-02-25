@@ -11,6 +11,10 @@
 | [model_guide.md](model_guide.md) | Complete model architecture, processes, and algorithms explained for beginners |
 | [data_ingestion_guide.md](data_ingestion_guide.md) | How structured and unstructured data are ingested, transformed, and fed into the model |
 | [data_provenance.md](data_provenance.md) | Source tracking and reliability classification for all data inputs |
+| [architecture.md](architecture.md) | Module-by-module code walkthrough — how every Python file works and how they connect |
+| [api_reference.md](api_reference.md) | Complete CLI argument reference and Python API (functions, dataclasses, entry points) |
+| [glossary.md](glossary.md) | Plain-English definitions of every technical term used in this project |
+| [troubleshooting.md](troubleshooting.md) | Common errors, error messages, and step-by-step fixes |
 
 ---
 
@@ -114,7 +118,11 @@ intel-18a-llambo/
 │   ├── README.md                  # This index
 │   ├── model_guide.md             # Model architecture
 │   ├── data_ingestion_guide.md    # Data pipeline
-│   └── data_provenance.md         # Source tracking
+│   ├── data_provenance.md         # Source tracking
+│   ├── architecture.md            # Code structure & module guide
+│   ├── api_reference.md           # CLI & Python API reference
+│   ├── glossary.md                # Technical terms explained
+│   └── troubleshooting.md         # Common errors and fixes
 ├── src/intel_18a_llambo/          # Source code
 │   ├── ingestion.py               # Data loading
 │   ├── context.py                 # Text → context extraction
@@ -158,6 +166,24 @@ For in-depth explanations, see:
    - Where each data point came from
    - Reliability classifications
    - Confidence labels
+
+4. **[architecture.md](architecture.md)** - Understand the code structure:
+   - Module-by-module explanation of every Python file
+   - How the files relate to each other (dependency graph)
+   - Data flow from raw inputs to forecast output
+
+5. **[api_reference.md](api_reference.md)** - Use the CLI and Python API:
+   - All command-line arguments with types, defaults, and descriptions
+   - Output file formats explained (CSV columns, plot descriptions)
+   - Python functions and dataclasses for programmatic use
+
+6. **[glossary.md](glossary.md)** - Look up any term:
+   - Plain-English definitions for every technical concept
+   - Bayesian optimization, LLAMBO, S-curve, yield, EI, and more
+
+7. **[troubleshooting.md](troubleshooting.md)** - Fix problems fast:
+   - Common error messages and their causes
+   - Step-by-step fixes for setup, data, and runtime issues
 
 ---
 
