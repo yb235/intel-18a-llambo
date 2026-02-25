@@ -38,6 +38,15 @@ def _clip(value: float, lo: float = 0.0, hi: float = 100.0) -> float:
     return min(hi, max(lo, value))
 
 
+def _feature_prior_signal(item: Observation) -> float:
+    blend = (
+        0.40 * item.cfo_gm_signal_strength
+        + 0.35 * item.ifs_profitability_timeline_score
+        + 0.25 * item.academic_yield_maturity_signal
+    )
+    return float(_clip(blend * item.disclosure_confidence, -1.0, 1.0))
+
+
 def run_forecast(
     observations: list[Observation],
     context: TaskContext,
@@ -79,12 +88,20 @@ def run_forecast(
     prev_mean = observations[-1].yield_pct
     prev_std = 0.0
     prev_area_factor = observations[-1].area_factor
+    prev_signal_prior = _feature_prior_signal(observations[-1])
+    prev_disclosure = observations[-1].disclosure_confidence
     area_diffs = (
         np.diff(np.array([item.area_factor for item in observations], dtype=float))
         if len(observations) > 1
         else np.array([0.0], dtype=float)
     )
+    signal_series = np.array([_feature_prior_signal(item) for item in observations], dtype=float)
+    signal_diffs = np.diff(signal_series) if signal_series.size > 1 else np.array([0.0], dtype=float)
+    disclosure_series = np.array([item.disclosure_confidence for item in observations], dtype=float)
+    disclosure_diffs = np.diff(disclosure_series) if disclosure_series.size > 1 else np.array([0.0], dtype=float)
     area_drift = float(np.median(area_diffs)) if area_diffs.size else 0.0
+    signal_drift = float(np.median(signal_diffs)) if signal_diffs.size else 0.0
+    disclosure_drift = float(np.median(disclosure_diffs)) if disclosure_diffs.size else 0.0
     incumbent_best = max(item.yield_pct for item in observations)
     diffs = np.diff(np.array(observed_yields, dtype=float)) if len(observed_yields) > 1 else np.array([0.0], dtype=float)
     innovation_scale = float(max(0.8, np.std(diffs, ddof=1) if diffs.size > 1 else abs(diffs[-1])))
@@ -94,7 +111,10 @@ def run_forecast(
         rolling_best = observations[0].yield_pct
         for idx in range(1, len(observations)):
             prev = observations[idx - 1].yield_pct
+            hist_signal = _feature_prior_signal(observations[idx - 1])
+            hist_disclosure = observations[idx - 1].disclosure_confidence
             hist_area = observations[idx - 1].area_factor if use_area_factor else 1.0
+            hist_area = _clip(hist_area - 0.14 * hist_signal * max(0.35, hist_disclosure), 0.6, 1.6)
             _, hist_post, _ = surrogate.pick_candidate_growth(
                 prev_yield=prev,
                 incumbent_best=rolling_best,
@@ -117,16 +137,24 @@ def run_forecast(
     for step in range(1, steps + 1):
         next_month = add_months(last_month, step)
         est_area_factor = _clip(prev_area_factor + area_drift, 0.6, 1.6) if use_area_factor else 1.0
+        est_signal_prior = _clip(prev_signal_prior + signal_drift, -1.0, 1.0)
+        est_disclosure = _clip(prev_disclosure + disclosure_drift, 0.0, 1.0)
+        signal_adjust = 0.14 * est_signal_prior * max(0.35, est_disclosure)
+        effective_area_factor = _clip(est_area_factor - signal_adjust, 0.6, 1.6)
         growth, posterior, acq = surrogate.pick_candidate_growth(
             prev_yield=prev_mean,
             incumbent_best=incumbent_best,
             month_index=step,
-            area_factor=est_area_factor,
+            area_factor=effective_area_factor,
         )
 
         propagated_std = (posterior.stddev**2 + (0.35 * prev_std) ** 2) ** 0.5
         if cfg.enabled:
             propagated_std = max(0.15, propagated_std * outlier_multiplier * robust_multiplier)
+            if est_signal_prior >= 0.0:
+                propagated_std *= max(0.82, 1.0 - 0.10 * est_signal_prior * est_disclosure)
+            else:
+                propagated_std *= 1.0 + 0.08 * abs(est_signal_prior) * est_disclosure
 
         mean = _clip(posterior.mean)
         if cfg.enabled:
@@ -148,13 +176,15 @@ def run_forecast(
             ci95_high=high,
             selected_growth_rate=growth,
             acquisition_value=acq,
-            area_factor=est_area_factor,
+            area_factor=effective_area_factor,
         )
         output.append(point)
 
         prev_mean = mean
         prev_std = propagated_std
         prev_area_factor = est_area_factor
+        prev_signal_prior = est_signal_prior
+        prev_disclosure = est_disclosure
         incumbent_best = max(incumbent_best, mean)
 
     return output

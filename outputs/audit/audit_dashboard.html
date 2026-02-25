@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Intel 18A Bayesian Audit Dashboard</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --ink: #1f3242;
+      --muted: #5f7487;
+      --line: #d8e2ec;
+      --accent: #0b6b9a;
+    }
+    body { margin: 0; padding: 24px; font-family: Georgia, 'Times New Roman', serif; background: var(--bg); color: var(--ink); }
+    .wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 16px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+    h1, h2 { margin: 0 0 10px 0; }
+    p { margin: 6px 0; color: var(--muted); }
+    img { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border: 1px solid var(--line); padding: 8px; text-align: left; }
+    th { background: #edf3f8; }
+    .links a { color: var(--accent); text-decoration: none; margin-right: 10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Intel 18A Bayesian Audit Dashboard</h1>
+      <p>Static audit artifact with provenance-aware visualizations and trace matrix links.</p>
+      <div class="links">
+        <a href="bayesian_update_timeline.png">Bayesian Update Timeline</a>
+        <a href="posterior_evolution.png">Posterior Evolution</a>
+        <a href="scenario_comparison.png">Scenario Comparison</a>
+        <a href="lineage_graph.svg">Lineage Graph</a>
+        <a href="trace_matrix.csv">Trace Matrix CSV</a>
+        <a href="audit_summary.md">Audit Summary</a>
+      </div>
+    </div>
+
+    <div class="card"><h2>Prior -> Likelihood -> Posterior Timeline</h2><img src="bayesian_update_timeline.png" alt="Bayesian update timeline" /></div>
+    <div class="card"><h2>Posterior Evolution with Uncertainty Bands</h2><img src="posterior_evolution.png" alt="Posterior evolution" /></div>
+    <div class="card"><h2>Scenario Comparison</h2><img src="scenario_comparison.png" alt="Scenario comparison" /></div>
+    <div class="card"><h2>Lineage Graph</h2><img src="lineage_graph.svg" alt="Lineage graph" /></div>
+
+    <div class="card">
+      <h2>Scenario Metrics Snapshot</h2>
+      <table>
+        <thead>
+          <tr><th>Scenario</th><th>Dataset used</th><th>Model version</th><th>RMSE</th><th>MAE</th><th>Coverage95</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>baseline</td><td>sample_observations</td><td>baseline</td><td>0.3017</td><td>0.3017</td><td>1.0000</td></tr>
+<tr><td>hardened</td><td>sample_observations</td><td>hardened</td><td>1.9000</td><td>1.9000</td><td>1.0000</td></tr>
+<tr><td>enriched</td><td>enriched_monthly_panel</td><td>hardened</td><td>11.3984</td><td>9.5361</td><td>0.4762</td></tr>
+<tr><td>enriched_rerun</td><td>enriched_monthly_panel</td><td>hardened</td><td>6.7123</td><td>5.1670</td><td>0.7238</td></tr>
+<tr><td>enriched_cfo_academic</td><td>enriched_monthly_panel</td><td>hardened</td><td>7.2543</td><td>5.4425</td><td>0.7143</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

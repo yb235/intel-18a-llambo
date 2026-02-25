@@ -15,6 +15,7 @@ dependencies = [
 [project.scripts]
 intel18a-yield = "intel_18a_llambo.cli:main"
 intel18a-yield-eval = "intel_18a_llambo.eval_cli:main"
+intel18a-audit-viz = "intel_18a_llambo.audit_viz:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

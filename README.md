@@ -305,3 +305,76 @@ out_path.write_text('\\n'.join(lines) + '\\n', encoding='utf-8')
 print(f'Wrote {out_path}')
 PY
 ```
+
+## Targeted rerun: CFO + academic enrichment pass
+
+Use this sequence to rebuild the panel with CFO-guidance and academic/disclosed technical signals, then rerun evaluation and produce explicit deltas vs `quality_enriched_rerun`:
+
+```bash
+# 1) Rebuild enriched panel with CFO + academic/disclosed signal features
+python3 scripts/ingest/build_enriched_panel.py
+
+# 2) Run evaluation to new output directory
+MPLCONFIGDIR=/tmp/mpl PYTHONPATH=src python3 -m intel_18a_llambo.eval_cli \
+  --observations-csv data/processed/enriched_monthly_panel.csv \
+  --output-dir outputs/quality_enriched_cfo_academic \
+  --assessment-filename critical_assessment_hardened.md \
+  --max-horizon 6 \
+  --seed 18 \
+  --prior-weight 0.65 \
+  --robust-likelihood huber \
+  --huber-delta 1.75 \
+  --context-drift-clip 0.02 \
+  --outlier-z-clip 3.25 \
+  --outlier-std-inflation 1.5 \
+  --interval-calibration isotonic \
+  --calibration-fallback quantile_scale \
+  --calibration-min-points 10 \
+  --interval-alpha 0.95
+
+# 3) Write explicit delta assessment vs outputs/quality_enriched_rerun
+python3 scripts/eval/write_cfo_academic_assessment.py
+```
+
+Expected outputs:
+
+- `outputs/quality_enriched_cfo_academic/metrics_summary.csv`
+- `outputs/quality_enriched_cfo_academic/backtest_predictions.csv`
+- `outputs/quality_enriched_cfo_academic/calibration_plot.png`
+- `outputs/quality_enriched_cfo_academic/benchmark_plot.png`
+- `outputs/quality_enriched_cfo_academic/ablation_comparison.csv`
+- `outputs/quality_enriched_cfo_academic/critical_assessment_enriched_cfo_academic.md`
+
+## Audit-grade Bayesian visualization suite
+
+Generate audit artifacts with provenance lineage and trace matrix:
+
+```bash
+PYTHONPATH=src python -m intel_18a_llambo.audit_viz \
+  --repo-root . \
+  --panel-csv data/processed/enriched_monthly_panel.csv \
+  --manifest-csv data/raw/source_manifest.csv \
+  --output-dir outputs/audit \
+  --lineage-format svg
+```
+
+Equivalent script entrypoint after editable install:
+
+```bash
+intel18a-audit-viz \
+  --repo-root . \
+  --panel-csv data/processed/enriched_monthly_panel.csv \
+  --manifest-csv data/raw/source_manifest.csv \
+  --output-dir outputs/audit \
+  --lineage-format svg
+```
+
+Expected audit outputs:
+
+- `outputs/audit/bayesian_update_timeline.png`
+- `outputs/audit/posterior_evolution.png`
+- `outputs/audit/scenario_comparison.png`
+- `outputs/audit/lineage_graph.svg`
+- `outputs/audit/trace_matrix.csv`
+- `outputs/audit/audit_dashboard.html`
+- `outputs/audit/audit_summary.md`

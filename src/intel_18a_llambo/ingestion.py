@@ -28,6 +28,10 @@ class Observation:
     month: date
     yield_pct: float
     area_factor: float = 1.0
+    cfo_gm_signal_strength: float = 0.0
+    ifs_profitability_timeline_score: float = 0.0
+    academic_yield_maturity_signal: float = 0.0
+    disclosure_confidence: float = 0.0
 
 
 def month_from_text(value: str, default_year: int = 2026) -> date:
@@ -58,7 +62,21 @@ def load_observations_csv(path: Path) -> list[Observation]:
             elif row.get("effective_die_area_mm2_proxy", "").strip():
                 area_factor = float(row["effective_die_area_mm2_proxy"]) / 180.0
             area_factor = min(1.6, max(0.6, area_factor))
-            obs.append(Observation(month=month, yield_pct=value, area_factor=area_factor))
+            cfo_signal = float(row.get("cfo_gm_signal_strength", "0") or 0.0)
+            ifs_signal = float(row.get("ifs_profitability_timeline_score", "0") or 0.0)
+            academic_signal = float(row.get("academic_yield_maturity_signal", "0") or 0.0)
+            disclosure_confidence = float(row.get("disclosure_confidence", "0") or 0.0)
+            obs.append(
+                Observation(
+                    month=month,
+                    yield_pct=value,
+                    area_factor=area_factor,
+                    cfo_gm_signal_strength=max(-1.0, min(1.0, cfo_signal)),
+                    ifs_profitability_timeline_score=max(-1.0, min(1.0, ifs_signal)),
+                    academic_yield_maturity_signal=max(-1.0, min(1.0, academic_signal)),
+                    disclosure_confidence=max(0.0, min(1.0, disclosure_confidence)),
+                )
+            )
     return sorted(obs, key=lambda item: item.month)
 
 
@@ -90,6 +108,10 @@ def ensure_bounds(observations: list[Observation], lo: float = 0.0, hi: float = 
                 month=item.month,
                 yield_pct=min(hi, max(lo, item.yield_pct)),
                 area_factor=min(1.6, max(0.6, item.area_factor)),
+                cfo_gm_signal_strength=max(-1.0, min(1.0, item.cfo_gm_signal_strength)),
+                ifs_profitability_timeline_score=max(-1.0, min(1.0, item.ifs_profitability_timeline_score)),
+                academic_yield_maturity_signal=max(-1.0, min(1.0, item.academic_yield_maturity_signal)),
+                disclosure_confidence=max(0.0, min(1.0, item.disclosure_confidence)),
             )
         )
     return bounded
