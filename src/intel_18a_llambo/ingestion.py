@@ -27,6 +27,7 @@ MONTH_MAP = {
 class Observation:
     month: date
     yield_pct: float
+    area_factor: float = 1.0
 
 
 def month_from_text(value: str, default_year: int = 2026) -> date:
@@ -48,7 +49,16 @@ def load_observations_csv(path: Path) -> list[Observation]:
         for row in reader:
             month = month_from_text(row["month"])
             value = float(row["yield"])
-            obs.append(Observation(month=month, yield_pct=value))
+            area_factor = 1.0
+            if row.get("area_factor", "").strip():
+                area_factor = float(row["area_factor"])
+            elif row.get("effective_die_area_mm2", "").strip():
+                # Normalize die area to a nominal reference to form a unitless scale proxy.
+                area_factor = float(row["effective_die_area_mm2"]) / 180.0
+            elif row.get("effective_die_area_mm2_proxy", "").strip():
+                area_factor = float(row["effective_die_area_mm2_proxy"]) / 180.0
+            area_factor = min(1.6, max(0.6, area_factor))
+            obs.append(Observation(month=month, yield_pct=value, area_factor=area_factor))
     return sorted(obs, key=lambda item: item.month)
 
 
@@ -59,7 +69,7 @@ def parse_inline_observations(inline: str, default_year: int = 2026) -> list[Obs
         raise ValueError("Could not parse inline observations. Example: Jan=64, Feb=68.5")
 
     obs = [
-        Observation(month=month_from_text(month_token, default_year), yield_pct=float(yield_token))
+        Observation(month=month_from_text(month_token, default_year), yield_pct=float(yield_token), area_factor=1.0)
         for month_token, yield_token in matches
     ]
     return sorted(obs, key=lambda item: item.month)
@@ -75,5 +85,11 @@ def load_transcripts(paths: list[Path]) -> str:
 def ensure_bounds(observations: list[Observation], lo: float = 0.0, hi: float = 100.0) -> list[Observation]:
     bounded: list[Observation] = []
     for item in observations:
-        bounded.append(Observation(month=item.month, yield_pct=min(hi, max(lo, item.yield_pct))))
+        bounded.append(
+            Observation(
+                month=item.month,
+                yield_pct=min(hi, max(lo, item.yield_pct)),
+                area_factor=min(1.6, max(0.6, item.area_factor)),
+            )
+        )
     return bounded

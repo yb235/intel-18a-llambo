@@ -1,0 +1,14 @@
+source_id,url,status,http_status,content_type,bytes,sha256,local_path,error
+intel_pr_q2_2024,https://www.intc.com/news-events/press-releases/detail/1677/intel-reports-second-quarter-2024-financial-results,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_pr_q3_2024,https://www.intc.com/news-events/press-releases/detail/1688/intel-reports-third-quarter-2024-financial-results,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_pr_q4_2024,https://www.intc.com/news-events/press-releases/detail/1711/intel-reports-fourth-quarter-and-full-year-2024-financial,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_pr_q1_2025,https://www.intc.com/news-events/press-releases/detail/1720/intel-reports-first-quarter-2025-financial-results,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_pr_q2_2025,https://www.intc.com/news-events/press-releases/detail/1730/intel-reports-second-quarter-2025-financial-results,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_pr_q3_2025,https://www.intc.com/news-events/press-releases/detail/1738/intel-reports-third-quarter-2025-financial-results,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_pr_q4_2025,https://www.intc.com/news-events/press-releases/detail/1746/intel-reports-fourth-quarter-and-full-year-2025-financial,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_news_ramp_c,https://newsroom.intel.com/manufacturing/intel-foundry-advances-ecosystem-support-for-18a-with-ramp-c-enabled-test-chip,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_news_dod,https://newsroom.intel.com/corporate/intel-foundry-accelerates-progress-on-multiple-u-s-department-of-defense-projects,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_news_panther_lake,https://newsroom.intel.com/client-computing/intel-demonstrates-unmatched-client-leadership-with-panther-lake-and-18a-process-node,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_press_direct_connect,https://www.intel.com/content/www/us/en/newsroom/press-releases/2025-intel-foundry-direct-connect.html,error,,html,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+intel_pdf_direct_connect,https://cdrdv2.intel.com/v1/dl/getContent/839813,error,,pdf,,,,"<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+nasa_terminal_attempt,mcporter:nasa-terminal,skipped_non_http,,json,,,,

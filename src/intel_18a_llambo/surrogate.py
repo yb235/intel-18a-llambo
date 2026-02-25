@@ -54,8 +54,15 @@ class LlamboStyleSurrogate:
             return 0.0
         return float(clip_value(np.median(growth), 0.0, 0.20))
 
-    def posterior_for_candidate(self, prev_yield: float, growth_rate: float, month_index: int) -> SurrogatePosterior:
+    def posterior_for_candidate(
+        self,
+        prev_yield: float,
+        growth_rate: float,
+        month_index: int,
+        area_factor: float = 1.0,
+    ) -> SurrogatePosterior:
         growth_rate = max(0.0, min(0.20, growth_rate))
+        area_factor = clip_value(area_factor, 0.6, 1.6)
 
         headroom = max(0.0, 100.0 - prev_yield)
         phase = 1.0 / (1.0 + exp(-(prev_yield - self.context.s_curve_midpoint) * self.context.s_curve_steepness))
@@ -67,7 +74,9 @@ class LlamboStyleSurrogate:
         if self.hardening.enabled:
             context_drift = clip_value(context_drift, -self.hardening.context_drift_clip, self.hardening.context_drift_clip)
 
-        effective_growth = max(0.0, growth_rate + context_drift)
+        # Larger effective die area generally increases defect exposure; model as a growth drag proxy.
+        size_drag = 0.03 * (area_factor - 1.0)
+        effective_growth = max(0.0, growth_rate + context_drift - size_drag)
         if self.hardening.enabled:
             blended_growth = (
                 self.hardening.prior_weight * effective_growth
@@ -75,11 +84,12 @@ class LlamboStyleSurrogate:
             )
             effective_growth = clip_value(blended_growth, 0.0, 0.20)
         mean = prev_yield + headroom * effective_growth * phase_gain
+        mean -= 3.0 * (area_factor - 1.0)
         mean = min(100.0, max(0.0, mean))
 
         base_std = 1.7 - min(1.1, 0.12 * month_index)
         growth_alignment_penalty = abs(growth_rate - self.context.guidance_growth_mid) * 18.0
-        stddev = max(0.45, base_std + growth_alignment_penalty)
+        stddev = max(0.45, base_std + growth_alignment_penalty + 0.4 * abs(area_factor - 1.0))
         if self.hardening.enabled:
             # Increase predictive spread for heavy-tail modes to avoid over-confident intervals.
             if self.hardening.robust_likelihood == "huber":
@@ -96,14 +106,20 @@ class LlamboStyleSurrogate:
         z = (mu - incumbent_best - xi) / sigma
         return (mu - incumbent_best - xi) * norm_cdf(z) + sigma * norm_pdf(z)
 
-    def pick_candidate_growth(self, prev_yield: float, incumbent_best: float, month_index: int) -> tuple[float, SurrogatePosterior, float]:
+    def pick_candidate_growth(
+        self,
+        prev_yield: float,
+        incumbent_best: float,
+        month_index: int,
+        area_factor: float = 1.0,
+    ) -> tuple[float, SurrogatePosterior, float]:
         grid = np.linspace(0.00, 0.15, 61)
         best_growth = float(grid[0])
-        best_posterior = self.posterior_for_candidate(prev_yield, best_growth, month_index)
+        best_posterior = self.posterior_for_candidate(prev_yield, best_growth, month_index, area_factor=area_factor)
         best_acq = -1.0
 
         for growth in grid:
-            posterior = self.posterior_for_candidate(prev_yield, float(growth), month_index)
+            posterior = self.posterior_for_candidate(prev_yield, float(growth), month_index, area_factor=area_factor)
             acq = self.expected_improvement(posterior.mean, posterior.stddev, incumbent_best)
             if acq > best_acq:
                 best_growth = float(growth)

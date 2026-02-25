@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 import csv
@@ -29,6 +29,8 @@ class Scenario:
     name: str
     context: TaskContext
     apply_to_all_models: bool
+    prior_source_tier: str
+    prior_reliability: float
 
 
 @dataclass(frozen=True)
@@ -129,21 +131,29 @@ def build_scenarios() -> list[Scenario]:
             name="prior_7_8_with_killer",
             context=generate_task_context(_scenario_transcript(7, 8, include_yield_killer_context=True)),
             apply_to_all_models=True,
+            prior_source_tier="subjective_prior",
+            prior_reliability=0.60,
         ),
         Scenario(
             name="prior_3_5_with_killer",
             context=generate_task_context(_scenario_transcript(3, 5, include_yield_killer_context=True)),
             apply_to_all_models=False,
+            prior_source_tier="subjective_prior",
+            prior_reliability=0.60,
         ),
         Scenario(
             name="prior_10_12_with_killer",
             context=generate_task_context(_scenario_transcript(10, 12, include_yield_killer_context=True)),
             apply_to_all_models=False,
+            prior_source_tier="subjective_prior",
+            prior_reliability=0.60,
         ),
         Scenario(
             name="prior_7_8_no_killer",
             context=generate_task_context(_scenario_transcript(7, 8, include_yield_killer_context=False)),
             apply_to_all_models=False,
+            prior_source_tier="subjective_prior",
+            prior_reliability=0.60,
         ),
     ]
 
@@ -156,8 +166,21 @@ def _estimate_innovation_scale(train: list[Observation]) -> float:
     return float(max(0.8, np.std(diffs, ddof=1) if len(diffs) > 1 else abs(diffs[-1])))
 
 
-def forecast_llambo(train: list[Observation], horizon: int, context: TaskContext, seed: int) -> ForecastDistribution:
-    points = run_forecast(observations=train, context=context, months_ahead=horizon, horizon=None, seed=seed)
+def forecast_llambo(
+    train: list[Observation],
+    horizon: int,
+    context: TaskContext,
+    seed: int,
+    use_area_factor: bool = True,
+) -> ForecastDistribution:
+    points = run_forecast(
+        observations=train,
+        context=context,
+        months_ahead=horizon,
+        horizon=None,
+        seed=seed,
+        use_area_factor=use_area_factor,
+    )
     future = [item for item in points if item.observed_yield is None]
     if len(future) < horizon:
         raise RuntimeError("LLAMBO forecast returned insufficient horizon length")
@@ -171,14 +194,23 @@ def forecast_llambo_with_config(
     context: TaskContext,
     seed: int,
     hardening: HardeningConfig,
+    prior_weight_multiplier: float = 1.0,
+    use_area_factor: bool = True,
 ) -> ForecastDistribution:
+    adjusted = hardening
+    if hardening.enabled:
+        adjusted = replace(
+            hardening,
+            prior_weight=min(1.0, max(0.0, hardening.prior_weight * prior_weight_multiplier)),
+        )
     points = run_forecast(
         observations=train,
         context=context,
         months_ahead=horizon,
         horizon=None,
         seed=seed,
-        hardening=hardening,
+        hardening=adjusted,
+        use_area_factor=use_area_factor,
     )
     future = [item for item in points if item.observed_yield is None]
     if len(future) < horizon:
@@ -568,19 +600,37 @@ def build_critical_assessment(
         summary_rows, "__ALL_SYNTHETIC__", "prior_7_8_with_killer", "llambo_style", "all", "rmse", model_version="baseline"
     )
     ll_h_rmse = _extract_metric(
-        summary_rows, "__ALL_SYNTHETIC__", "prior_7_8_with_killer", "llambo_style", "all", "rmse", model_version="hardened"
+        summary_rows,
+        "__ALL_SYNTHETIC__",
+        "prior_7_8_with_killer",
+        "llambo_style",
+        "all",
+        "rmse",
+        model_version="hardened",
     )
     ll_b_cov = _extract_metric(
         summary_rows, "__ALL_SYNTHETIC__", "prior_7_8_with_killer", "llambo_style", "all", "coverage95", model_version="baseline"
     )
     ll_h_cov = _extract_metric(
-        summary_rows, "__ALL_SYNTHETIC__", "prior_7_8_with_killer", "llambo_style", "all", "coverage95", model_version="hardened"
+        summary_rows,
+        "__ALL_SYNTHETIC__",
+        "prior_7_8_with_killer",
+        "llambo_style",
+        "all",
+        "coverage95",
+        model_version="hardened",
     )
     ll_b_cal = _extract_metric(
         summary_rows, "__ALL_SYNTHETIC__", "prior_7_8_with_killer", "llambo_style", "all", "calibration_error", model_version="baseline"
     )
     ll_h_cal = _extract_metric(
-        summary_rows, "__ALL_SYNTHETIC__", "prior_7_8_with_killer", "llambo_style", "all", "calibration_error", model_version="hardened"
+        summary_rows,
+        "__ALL_SYNTHETIC__",
+        "prior_7_8_with_killer",
+        "llambo_style",
+        "all",
+        "calibration_error",
+        model_version="hardened",
     )
 
     ll_b_outlier = _extract_metric(
@@ -589,17 +639,32 @@ def build_critical_assessment(
     ll_h_outlier = _extract_metric(
         summary_rows, "synthetic_outlier", "prior_7_8_with_killer", "llambo_style", "all", "rmse", model_version="hardened"
     )
+    ll_h_no_area_rmse = _extract_metric(
+        summary_rows,
+        "__ALL_SYNTHETIC__",
+        "prior_7_8_with_killer",
+        "llambo_style",
+        "all",
+        "rmse",
+        model_version="hardened_no_area",
+    )
 
     logistic_failures = len(
         [item for item in records if item.model == "logistic_scurve" and item.status != "ok"]
     )
 
-    sample_count = len([item for item in records if item.dataset == "sample_observations" and item.status == "ok"])
+    observed_names = sorted({item.dataset for item in records if item.dataset_type == "observed"})
+    sample_count = len([item for item in records if item.dataset_type == "observed" and item.status == "ok"])
 
     rmse_delta = ll_h_rmse - ll_b_rmse if not (math.isnan(ll_h_rmse) or math.isnan(ll_b_rmse)) else float("nan")
     cov_delta = ll_h_cov - ll_b_cov if not (math.isnan(ll_h_cov) or math.isnan(ll_b_cov)) else float("nan")
     cal_delta = ll_h_cal - ll_b_cal if not (math.isnan(ll_h_cal) or math.isnan(ll_b_cal)) else float("nan")
     outlier_delta = ll_h_outlier - ll_b_outlier if not (math.isnan(ll_h_outlier) or math.isnan(ll_b_outlier)) else float("nan")
+    area_delta = (
+        ll_h_rmse - ll_h_no_area_rmse
+        if not (math.isnan(ll_h_rmse) or math.isnan(ll_h_no_area_rmse))
+        else float("nan")
+    )
 
     regressed = [
         name
@@ -623,8 +688,13 @@ def build_critical_assessment(
         "",
         "## Scope and Data Reality",
         "- Backtesting used rolling-origin monthly forecasts with horizons 1-6 months.",
-        "- `sample_observations.csv` is too short for serious validation (2 points only); synthetic stress datasets were therefore required and are explicitly labeled.",
-        f"- Sample backtest usable points: {sample_count} (statistically weak).",
+        f"- Observed dataset(s): {', '.join(f'`{name}`' for name in observed_names) if observed_names else '`none`'}.",
+        f"- Observed backtest usable points: {sample_count}.",
+        (
+            "- Observed panel remains short/noisy relative to production forecasting needs; synthetic stress datasets are retained and explicitly labeled."
+            if sample_count < 180
+            else "- Observed panel is materially larger than the thin baseline, but still not a substitute for true measured fab yield telemetry."
+        ),
         "",
         "## Synthetic Stress Datasets Used",
     ]
@@ -645,8 +715,10 @@ def build_critical_assessment(
             f"- LLAMBO baseline coverage95={ll_b_cov:.3f}, hardened coverage95={ll_h_cov:.3f}, delta={cov_delta:+.3f}.",
             f"- LLAMBO baseline calibration_error={ll_b_cal:.3f}, hardened calibration_error={ll_h_cal:.3f}, delta={cal_delta:+.3f}.",
             f"- LLAMBO outlier RMSE baseline={ll_b_outlier:.3f}, hardened={ll_h_outlier:.3f}, delta={outlier_delta:+.3f}.",
+            f"- Area-factor impact (hardened with-area minus hardened no-area, RMSE): {area_delta:+.3f}.",
             "",
             "## Stress and Sensitivity Findings",
+            "- Scenario prior from the attached fictional case study is treated as a subjective prior and down-weighted by reliability before blending with data anchor growth.",
             "- Prior-weight regularization and context-drift clipping reduced narrative over-dominance in high-guidance transcripts, but may under-react in genuinely fast-improving regimes.",
             "- Outlier-aware variance inflation improved tail coverage stability in shock windows where baseline LLAMBO was over-confident.",
             "- Isotonic/quantile interval recalibration changed uncertainty bands without changing mean dynamics, so point accuracy gains can remain small.",
@@ -686,6 +758,7 @@ def build_ablation_comparison(summary_rows: list[dict[str, str]]) -> list[dict[s
     for (dataset, dataset_type, scenario, model, horizon), versions in sorted(grouped.items()):
         baseline = versions.get("baseline")
         hardened = versions.get("hardened")
+        hardened_no_area = versions.get("hardened_no_area")
         if baseline is None or hardened is None:
             continue
 
@@ -699,12 +772,18 @@ def build_ablation_comparison(summary_rows: list[dict[str, str]]) -> list[dict[s
         for metric in metrics:
             b = float(baseline[metric]) if baseline[metric] != "" else float("nan")
             h = float(hardened[metric]) if hardened[metric] != "" else float("nan")
+            h_no_area = float(hardened_no_area[metric]) if (hardened_no_area and hardened_no_area[metric] != "") else float("nan")
             row[f"{metric}_baseline"] = "" if math.isnan(b) else f"{b:.4f}"
             row[f"{metric}_hardened"] = "" if math.isnan(h) else f"{h:.4f}"
+            row[f"{metric}_hardened_no_area"] = "" if math.isnan(h_no_area) else f"{h_no_area:.4f}"
             if math.isnan(b) or math.isnan(h):
                 row[f"{metric}_delta_hardened_minus_baseline"] = ""
             else:
                 row[f"{metric}_delta_hardened_minus_baseline"] = f"{(h - b):+.4f}"
+            if math.isnan(h) or math.isnan(h_no_area):
+                row[f"{metric}_delta_hardened_minus_hardened_no_area"] = ""
+            else:
+                row[f"{metric}_delta_hardened_minus_hardened_no_area"] = f"{(h - h_no_area):+.4f}"
         out.append(row)
     return out
 
@@ -721,8 +800,9 @@ def run_rolling_backtest(
 
     baseline_models = ["persistence", "linear_trend", "logistic_scurve", "gp_surrogate"]
     llambo_variants = [
-        ("llambo_style", "baseline", HardeningConfig.baseline()),
-        ("llambo_style", "hardened", hardening.validated()),
+        ("llambo_style", "baseline", HardeningConfig.baseline(), True),
+        ("llambo_style", "hardened", hardening.validated(), True),
+        ("llambo_style", "hardened_no_area", hardening.validated(), False),
     ]
 
     for dataset_name, obs in datasets.items():
@@ -743,11 +823,13 @@ def run_rolling_backtest(
                         continue
                     target = ordered[target_idx]
                     if scenario.apply_to_all_models:
-                        model_loop = list(llambo_variants) + [(name, "baseline", HardeningConfig.baseline()) for name in baseline_models]
+                        model_loop = list(llambo_variants) + [
+                            (name, "baseline", HardeningConfig.baseline(), False) for name in baseline_models
+                        ]
                     else:
                         model_loop = list(llambo_variants)
 
-                    for model, model_version, model_cfg in model_loop:
+                    for model, model_version, model_cfg, use_area_factor in model_loop:
                         status = "ok"
                         note = ""
                         mean = float("nan")
@@ -755,7 +837,20 @@ def run_rolling_backtest(
 
                         try:
                             if model == "llambo_style":
-                                pred = forecast_llambo_with_config(train, horizon, scenario.context, seed=seed, hardening=model_cfg)
+                                prior_weight_multiplier = (
+                                    scenario.prior_reliability
+                                    if (scenario.prior_source_tier == "subjective_prior" and model_cfg.enabled)
+                                    else 1.0
+                                )
+                                pred = forecast_llambo_with_config(
+                                    train,
+                                    horizon,
+                                    scenario.context,
+                                    seed=seed,
+                                    hardening=model_cfg,
+                                    prior_weight_multiplier=prior_weight_multiplier,
+                                    use_area_factor=use_area_factor,
+                                )
                             elif model == "persistence":
                                 pred = forecast_persistence(train, horizon)
                             elif model == "linear_trend":
@@ -807,6 +902,7 @@ def run_quality_evaluation(
     observations_csv: Path,
     transcript_files: list[Path] | None,
     output_dir: Path,
+    assessment_filename: str = "critical_assessment_hardened.md",
     max_horizon: int = 6,
     seed: int = 18,
     include_synthetic: bool = True,
@@ -820,10 +916,11 @@ def run_quality_evaluation(
     dataset_types: dict[str, str] = {}
     dataset_notes: dict[str, str] = {}
 
+    real_dataset_name = observations_csv.stem
     real_obs = ensure_bounds(load_observations_csv(observations_csv))
-    datasets["sample_observations"] = real_obs
-    dataset_types["sample_observations"] = "observed"
-    dataset_notes["sample_observations"] = "Real sample dataset from project repository."
+    datasets[real_dataset_name] = real_obs
+    dataset_types[real_dataset_name] = "observed"
+    dataset_notes[real_dataset_name] = f"Observed dataset loaded from `{observations_csv}`."
 
     if include_synthetic:
         synth, synth_notes = generate_synthetic_datasets(seed=seed)
@@ -857,7 +954,7 @@ def run_quality_evaluation(
     ablation_path = output_dir / "ablation_comparison.csv"
     calibration_path = output_dir / "calibration_plot.png"
     benchmark_path = output_dir / "benchmark_plot.png"
-    assessment_path = output_dir / "critical_assessment_hardened.md"
+    assessment_path = output_dir / assessment_filename
 
     write_csv(prediction_rows, predictions_path)
     write_csv(summary_rows, summary_path)

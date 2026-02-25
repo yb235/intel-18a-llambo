@@ -34,6 +34,7 @@ def write_forecast_csv(points: list[ForecastPoint], output_path: Path) -> None:
                 "ci95_high",
                 "selected_growth_rate",
                 "acquisition_value",
+                "area_factor",
             ],
         )
         writer.writeheader()
@@ -48,6 +49,7 @@ def write_forecast_csv(points: list[ForecastPoint], output_path: Path) -> None:
                     "ci95_high": f"{item.ci95_high:.4f}",
                     "selected_growth_rate": "" if item.selected_growth_rate is None else f"{item.selected_growth_rate:.4f}",
                     "acquisition_value": "" if item.acquisition_value is None else f"{item.acquisition_value:.6f}",
+                    "area_factor": "" if item.area_factor is None else f"{item.area_factor:.4f}",
                 }
             )
 

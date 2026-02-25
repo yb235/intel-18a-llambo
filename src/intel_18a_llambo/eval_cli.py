@@ -28,6 +28,12 @@ def build_parser() -> ArgumentParser:
         default=Path("outputs/quality"),
         help="Output directory for evaluation artifacts",
     )
+    parser.add_argument(
+        "--assessment-filename",
+        type=str,
+        default="critical_assessment_hardened.md",
+        help="Filename for markdown critical assessment artifact",
+    )
     parser.add_argument("--max-horizon", type=int, default=6, help="Maximum monthly horizon for rolling backtests")
     parser.add_argument("--seed", type=int, default=18, help="Random seed")
     parser.add_argument(
@@ -91,6 +97,7 @@ def main() -> None:
         observations_csv=args.observations_csv,
         transcript_files=args.transcript_files,
         output_dir=args.output_dir,
+        assessment_filename=args.assessment_filename,
         max_horizon=args.max_horizon,
         seed=args.seed,
         include_synthetic=not args.no_synthetic,

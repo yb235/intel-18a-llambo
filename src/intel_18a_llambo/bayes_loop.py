@@ -21,6 +21,7 @@ class ForecastPoint:
     ci95_high: float
     selected_growth_rate: float | None
     acquisition_value: float | None
+    area_factor: float | None
 
 
 def add_months(base: date, count: int) -> date:
@@ -44,6 +45,7 @@ def run_forecast(
     horizon: date | None = None,
     seed: int = 18,
     hardening: HardeningConfig | None = None,
+    use_area_factor: bool = True,
 ) -> list[ForecastPoint]:
     if not observations:
         raise ValueError("At least one observation is required.")
@@ -65,6 +67,7 @@ def run_forecast(
                 ci95_high=obs.yield_pct,
                 selected_growth_rate=None,
                 acquisition_value=None,
+                area_factor=obs.area_factor,
             )
         )
 
@@ -75,6 +78,13 @@ def run_forecast(
 
     prev_mean = observations[-1].yield_pct
     prev_std = 0.0
+    prev_area_factor = observations[-1].area_factor
+    area_diffs = (
+        np.diff(np.array([item.area_factor for item in observations], dtype=float))
+        if len(observations) > 1
+        else np.array([0.0], dtype=float)
+    )
+    area_drift = float(np.median(area_diffs)) if area_diffs.size else 0.0
     incumbent_best = max(item.yield_pct for item in observations)
     diffs = np.diff(np.array(observed_yields, dtype=float)) if len(observed_yields) > 1 else np.array([0.0], dtype=float)
     innovation_scale = float(max(0.8, np.std(diffs, ddof=1) if diffs.size > 1 else abs(diffs[-1])))
@@ -84,7 +94,13 @@ def run_forecast(
         rolling_best = observations[0].yield_pct
         for idx in range(1, len(observations)):
             prev = observations[idx - 1].yield_pct
-            _, hist_post, _ = surrogate.pick_candidate_growth(prev_yield=prev, incumbent_best=rolling_best, month_index=1)
+            hist_area = observations[idx - 1].area_factor if use_area_factor else 1.0
+            _, hist_post, _ = surrogate.pick_candidate_growth(
+                prev_yield=prev,
+                incumbent_best=rolling_best,
+                month_index=1,
+                area_factor=hist_area,
+            )
             z = (observations[idx].yield_pct - hist_post.mean) / max(hist_post.stddev, 1e-6)
             hist_z_scores.append(float(z))
             rolling_best = max(rolling_best, observations[idx].yield_pct)
@@ -100,10 +116,12 @@ def run_forecast(
 
     for step in range(1, steps + 1):
         next_month = add_months(last_month, step)
+        est_area_factor = _clip(prev_area_factor + area_drift, 0.6, 1.6) if use_area_factor else 1.0
         growth, posterior, acq = surrogate.pick_candidate_growth(
             prev_yield=prev_mean,
             incumbent_best=incumbent_best,
             month_index=step,
+            area_factor=est_area_factor,
         )
 
         propagated_std = (posterior.stddev**2 + (0.35 * prev_std) ** 2) ** 0.5
@@ -130,11 +148,13 @@ def run_forecast(
             ci95_high=high,
             selected_growth_rate=growth,
             acquisition_value=acq,
+            area_factor=est_area_factor,
         )
         output.append(point)
 
         prev_mean = mean
         prev_std = propagated_std
+        prev_area_factor = est_area_factor
         incumbent_best = max(incumbent_best, mean)
 
     return output
